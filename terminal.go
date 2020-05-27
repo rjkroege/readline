@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"log"
 )
 
 type Terminal struct {
@@ -118,6 +120,7 @@ func (t *Terminal) KickRead() {
 func (t *Terminal) ioloop() {
 	t.wg.Add(1)
 	defer func() {
+log.Println("termi ioi: ending wait group")
 		t.wg.Done()
 		close(t.outchan)
 	}()
@@ -132,16 +135,21 @@ func (t *Terminal) ioloop() {
 	for {
 		if !expectNextChar {
 			atomic.StoreInt32(&t.isReading, 0)
+log.Println("termi ioi: chan blocking")
 			select {
 			case <-t.kickChan:
 				atomic.StoreInt32(&t.isReading, 1)
 			case <-t.stopChan:
 				return
 			}
+log.Println("term ioi: chan unblocking")
 		}
 		expectNextChar = false
+log.Println("termi ioi: going to ReadRune")
 		r, _, err := buf.ReadRune()
+log.Println("termi ioi: after to ReadRune")
 		if err != nil {
+log.Println("termi ioi: after to ReadRune", err)
 			if strings.Contains(err.Error(), "interrupted system call") {
 				expectNextChar = true
 				continue
@@ -191,7 +199,9 @@ func (t *Terminal) ioloop() {
 			expectNextChar = false
 			fallthrough
 		default:
+log.Println("term ioi: chan blocking on outchan")
 			t.outchan <- r
+log.Println("term ioi: chan unblocking on outchan")
 		}
 	}
 
@@ -202,14 +212,18 @@ func (t *Terminal) Bell() {
 }
 
 func (t *Terminal) Close() error {
+log.Println("Terminal.Close, entered")
 	if atomic.SwapInt32(&t.closed, 1) != 0 {
 		return nil
 	}
 	if closer, ok := t.cfg.Stdin.(io.Closer); ok {
 		closer.Close()
 	}
+log.Println("Terminal.Close, beforing closing stopChan")
 	close(t.stopChan)
+log.Println("Terminal.Close, about to wait")
 	t.wg.Wait()
+log.Println("Terminal.Close, exited waiting")
 	return t.ExitRawMode()
 }
 

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"sync"
+
+	"log"
 )
 
 var (
@@ -108,7 +110,10 @@ func (o *Operation) ioloop() {
 	for {
 		keepInSearchMode := false
 		keepInCompleteMode := false
+
+log.Println("operation.ioloop before ReadRune")
 		r := o.t.ReadRune()
+log.Println("operation.ioloop after ReadRune")
 		if o.GetConfig().FuncFilterInputRune != nil {
 			var process bool
 			r, process = o.GetConfig().FuncFilterInputRune(r)
@@ -387,6 +392,8 @@ func (o *Operation) Runes() ([]rune, error) {
 
 	o.buf.Refresh(nil) // print prompt
 	o.t.KickRead()
+
+// what id I can give an additional channel here to say to exit?
 	select {
 	case r := <-o.outchan:
 		return r, nil
@@ -528,4 +535,12 @@ type defaultPainter struct{}
 
 func (p *defaultPainter) Paint(line []rune, _ int) []rune {
 	return line
+}
+
+// AsyncQuit stops in-progress Readline actions for applictions that need
+// to asynchronously quit while readline is continuing to wait for user
+// input.
+func (o *Operation) AsyncQuit() {
+	o.errchan <- io.EOF
+	o.cfg.Stdin.Close()
 }
